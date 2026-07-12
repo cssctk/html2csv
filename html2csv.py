@@ -145,8 +145,8 @@ def main():
     script_name = os.path.basename(__file__)
 
     if args.input is None:
-        print("No input provided. Usage:", file=sys.stderr)
-        print(f"  python {script_name} input.html", file=sys.stderr)
+        print("Usage:", file=sys.stderr)
+        print(f"  python {script_name} [-c charset|--charset=charset] input.html", file=sys.stderr)
         sys.exit(1)
 
     if args.input == "-":
