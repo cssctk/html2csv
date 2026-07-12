@@ -144,6 +144,9 @@ def main():
     args = parse_args()
     script_name = os.path.basename(__file__)
 
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     if args.input is None:
         print("Usage:", file=sys.stderr)
         print(f"  python {script_name} [-c charset|--charset=charset] input.html", file=sys.stderr)
@@ -173,20 +176,19 @@ def main():
             write_csv(tables[0], sys.stdout)
         return
 
-    if len(tables) > 1:
-        base, ext = default_output.rsplit(".", 1) if "." in default_output else (default_output, "")
-        for idx, table in enumerate(tables, start=1):
-            suffix = f"{idx:02d}"
-            if ext:
-                path = f"{base}-{suffix}.{ext}"
-            else:
-                path = f"{base}-{suffix}"
-            with open(path, "w", encoding=args.charset, newline="") as f:
-                write_csv(table, f)
-        return
+    input_dir = os.path.dirname(os.path.abspath(args.input))
+    input_name = os.path.basename(args.input)
+    if "." in input_name:
+        folder_name = input_name.rsplit(".", 1)[0]
+    else:
+        folder_name = input_name
+    output_dir = os.path.join(input_dir, folder_name)
+    os.makedirs(output_dir, exist_ok=True)
 
-    with open(default_output, "w", encoding=args.charset, newline="") as f:
-        write_csv(tables[0], f)
+    for idx, table in enumerate(tables, start=1):
+        path = os.path.join(output_dir, f"table-{idx:02d}.csv")
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            write_csv(table, f)
 
 
 if __name__ == "__main__":

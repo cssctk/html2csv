@@ -6,9 +6,10 @@ html2csv converts HTML tables into CSV files.
 
 - Parses HTML tables from a file or from stdin
 - Supports source HTML character sets via `-c/--charset`
-- Writes CSV output using the same character set as the source HTML
-- Writes one CSV file per table when multiple tables are found
-- Uses the input filename as the default output basename, replacing the extension with `.csv`
+- Reads the source HTML using the requested source encoding
+- Writes CSV output as UTF-8
+- Creates a folder next to the source HTML using the source filename stem, and writes CSV files into it
+- Writes one CSV file per table, named `table-01.csv`, `table-02.csv`, and so on
 
 ## Usage
 
@@ -16,20 +17,32 @@ html2csv converts HTML tables into CSV files.
 python html2csv.py input.html
 ```
 
-This creates a file named like `input.csv`.
+This creates a folder named after the source file stem (for example, `input`) in the same directory as the source HTML, and writes CSV files into it.
 
-If the HTML contains multiple tables, the script writes multiple files with numeric suffixes such as:
+For a single table, the output file is:
 
 ```text
-input-01.csv
-input-02.csv
+input/table-01.csv
+```
+
+If the HTML contains multiple tables, the script writes multiple files such as:
+
+```text
+input/table-01.csv
+input/table-02.csv
 ```
 
 ### Read from stdin
 
+When the input is `-`, the script reads from standard input and writes CSV to standard output.
+
 ```bash
 cat input.html | python html2csv.py -
+
+python html2csv.py - < sample.html
 ```
+
+If multiple tables are found, the output is written as separate CSV blocks with a `# Table N` header.
 
 ### Specify source charset
 
@@ -64,7 +77,13 @@ Running:
 python html2csv.py sample.html
 ```
 
-produces a CSV file similar to:
+produces a UTF-8 CSV file at:
+
+```text
+sample/table-01.csv
+```
+
+with content similar to:
 
 ```csv
 Name,Age
