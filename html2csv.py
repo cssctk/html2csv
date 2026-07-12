@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Convert HTML table(s) to CSV.
 
-Usage examples:
-  python html2csv.py input.html > output.csv
-  python html2csv.py input.html
-  python html2csv.py input.html > output.csv
-  python html2csv.py -c gb2312 input.html
-  python html2csv.py -c utf-8 input.html
-"""
 import argparse
 import codecs
 import csv
