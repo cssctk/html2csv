@@ -1,15 +1,18 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Convert HTML table(s) to CSV.
 
 Usage examples:
   python html2csv.py input.html > output.csv
-  python html2csv.py -i input.html -o output.csv
-  python html2csv.py -o out-{i}.csv input.html
-  python html2csv.py --table 2 input.html
+  python html2csv.py input.html
+  python html2csv.py input.html > output.csv
+  python html2csv.py -c gb2312 input.html
+  python html2csv.py -c utf-8 input.html
 """
 import argparse
+import codecs
 import csv
 import html
+import os
 import sys
 from html.parser import HTMLParser
 
@@ -107,97 +110,91 @@ def parse_tables(html_text):
     return [table["rows"] for table in parser.tables if table["rows"]]
 
 
-def write_csv(rows, output_file, delimiter):
-    writer = csv.writer(output_file, delimiter=delimiter, lineterminator="\n")
+def parse_tables_from_stream(stream, encoding="utf-8", errors="replace", chunk_size=65536):
+    parser = TableHTMLParser()
+    reader = codecs.getreader(encoding)(stream, errors=errors)
+    while True:
+        chunk = reader.read(chunk_size)
+        if not chunk:
+            break
+        parser.feed(chunk)
+    parser.close()
+    return [table["rows"] for table in parser.tables if table["rows"]]
+
+
+def write_csv(rows, output_file):
+    writer = csv.writer(output_file, delimiter=",", lineterminator="\n")
     for row in rows:
         writer.writerow(row)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Convert HTML <table> to CSV.")
+    parser = argparse.ArgumentParser(
+        description="Convert HTML <table> to CSV.",
+        add_help=True,
+    )
     parser.add_argument(
         "input",
         nargs="?",
-        default="-",
+        default=None,
         help="Path to the HTML file, or '-' to read from stdin.",
     )
     parser.add_argument(
-        "-o",
-        "--output",
-        default="-",
-        help="Output CSV path, '-' for stdout. Use '{i}' to write multiple tables to separate files.",
-    )
-    parser.add_argument(
-        "-t",
-        "--table",
-        type=int,
-        default=None,
-        help="Select a specific table by 1-based index when multiple tables exist.",
-    )
-    parser.add_argument(
-        "-d",
-        "--delimiter",
-        default=",",
-        help="CSV delimiter character. Defaults to ','.",
-    )
-    parser.add_argument(
-        "--encoding",
+        "-c",
+        "--charset",
         default="utf-8",
-        help="Input/output encoding. Defaults to utf-8.",
+        help="Source HTML character set. Defaults to utf-8.",
     )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    script_name = os.path.basename(__file__)
+
+    if args.input is None:
+        print("No input provided. Usage:", file=sys.stderr)
+        print(f"  python {script_name} input.html", file=sys.stderr)
+        sys.exit(1)
 
     if args.input == "-":
-        html_text = sys.stdin.read()
+        stream = sys.stdin.buffer if hasattr(sys.stdin, "buffer") else sys.stdin
+        tables = parse_tables_from_stream(stream, encoding=args.charset)
+        default_output = None
     else:
-        with open(args.input, "r", encoding=args.encoding, errors="replace") as f:
-            html_text = f.read()
+        with open(args.input, "rb") as f:
+            tables = parse_tables_from_stream(f, encoding=args.charset)
+        default_output = args.input.rsplit(".", 1)[0] + ".csv" if "." in args.input else args.input + ".csv"
 
-    tables = parse_tables(html_text)
     if not tables:
         print("No <table> elements found in input.", file=sys.stderr)
         sys.exit(1)
 
-    if args.table is not None:
-        index = args.table - 1
-        if not 0 <= index < len(tables):
-            print(
-                f"Table index {args.table} is out of range. {len(tables)} table(s) found.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        tables = [tables[index]]
-
-    if args.output == "-":
+    if args.input == "-":
         if len(tables) > 1:
             for idx, table in enumerate(tables, start=1):
                 if idx > 1:
                     print(file=sys.stdout)
                 print(f"# Table {idx}", file=sys.stdout)
-                write_csv(table, sys.stdout, args.delimiter)
+                write_csv(table, sys.stdout)
         else:
-            write_csv(tables[0], sys.stdout, args.delimiter)
+            write_csv(tables[0], sys.stdout)
         return
 
     if len(tables) > 1:
-        if "{i}" in args.output:
-            for idx, table in enumerate(tables, start=1):
-                path = args.output.format(i=idx)
-                with open(path, "w", encoding=args.encoding, newline="") as f:
-                    write_csv(table, f, args.delimiter)
-            return
-        print(
-            "Multiple tables found. Specify --table N or use an output template containing '{i}' to write separate files.",
-            file=sys.stderr,
-        )
-        sys.exit(3)
+        base, ext = default_output.rsplit(".", 1) if "." in default_output else (default_output, "")
+        for idx, table in enumerate(tables, start=1):
+            suffix = f"{idx:02d}"
+            if ext:
+                path = f"{base}-{suffix}.{ext}"
+            else:
+                path = f"{base}-{suffix}"
+            with open(path, "w", encoding=args.charset, newline="") as f:
+                write_csv(table, f)
+        return
 
-    with open(args.output, "w", encoding=args.encoding, newline="") as f:
-        write_csv(tables[0], f, args.delimiter)
+    with open(default_output, "w", encoding=args.charset, newline="") as f:
+        write_csv(tables[0], f)
 
 
 if __name__ == "__main__":
